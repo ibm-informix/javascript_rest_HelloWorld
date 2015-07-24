@@ -7,7 +7,7 @@
 	},
 	"dependencies": {
       "express": "4.12.x",
-      "https" : "*",
+      "request" : "2.60.0",
       "ejs":"~2.3.3"
   },
   "repository": {}

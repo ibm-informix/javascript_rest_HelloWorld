@@ -17,49 +17,44 @@
  * 7 Drop a collection
  */
 
+//external dependencies
 var express = require('express');
 var app = express();
-var https = require('http');
-var commands = [];
-//var myCert = require('fs').readFileSync("");
-var host;
+var request = require('request');
+
+//connection information
+var host = '';
 var port = process.env.VCAP_APP_PORT || 8881;
-var database;
-var username;
-var password;
+var database = '';
+var username = '';
+var password = '';
+//if pasting url info use this format
+//var url = "https://" + username + ":" + password + "@" + host + ":" + port + database;
+var url = 'http://cloudqa:cloud4pass@baratheon.lenexa.ibm.com:8881/dbTest';
+
+//program variables
+var collection = 'mycollection';
+var data = "";
+var commands = [];
 
 function doEverything(res) {
-	parseVcap();
-	var collectionOptions = {
-			host : host,
-			path : database,
-			port : port,
-			method : 'POST',
-			headers: {
-			     'Authorization': 'Basic ' + new Buffer(username + ':' + password).toString('base64')
-			   } 
-	};
+	//if connecting to database via bluemix use the parseVcap function
+	//parseVcap();
+	
+	//start chain of function calls
+	createCollection();
 	
 	function createCollection(err) {
 		//1 Create a collection
 		commands.push("\n1 Create a collection");
 		
-		var request = https.request(collectionOptions, function(response) {
-			if (err){
-			return console.error("error: ", err.message);
-		}
-			var outputString = '';
-			response.on('data', function(chunk) {
-				outputString += chunk;
+		//POST /collection
+		data = {"name":collection};
+		request.post({url: url, body: JSON.stringify(data)}, function(error, response, body){
+					commands.push("   -  Create collection: " +  body);
+					createDocument();
 			});
-	
-			response.on('end', function() {
-				commands.push("\tCreate Collection: " + outputString);
-				createDocument();
-			});
-		});
-		request.write("{'name':'mycollection'}");
-		request.end();
+		
 	}
 	
 	function createDocument() {
@@ -67,105 +62,66 @@ function doEverything(res) {
 		commands.push("\n2 Inserts");
 		//2.1 Insert a single document into a collection
 		commands.push("2.1 Insert a single document into a collection");
-	
-		collectionOptions.path = database + "/mycollection";
 		
-		var request = https.request(collectionOptions, function(response) {
-			var outputString = '';
-			response.on('data', function(chunk) {
-				outputString += chunk;
+		//POST /collection
+		data = "{'name':'user1','number':1}";
+		request.post({url: url + "/" + collection, body: data}, function(error, response, body){
+					commands.push("   -  Create document: " +  body);
+					createMultipleDocument();
 			});
-	
-			response.on('end', function() {
-				commands.push("\tCreate Document: " + outputString);
-				createMultipleDocument();
-			});
-		});
-		request.write("{'name':'user1','number':1}");
-		request.end();
+		
 	}
 	
 	function createMultipleDocument() {
 		//2.2 Insert multiple documents into a collection
 		commands.push("2.2 Insert multiple documents into a collection");
-	
-		var request = https.request(collectionOptions,
-				function(response) {
-					var outputString = '';
-					response.on('data', function(chunk) {
-						outputString += chunk;
-					});
-	
-					response.on('end', function() {
-						commands.push("\tCreate Multiple Documents: "
-								+ outputString);
-						listDocument();
-					});
-				});
-		request.write("[{'name':'user2','number':2},{'name':'user3','number':3}]");
-		request.end();
+		
+		//POST /collection
+		data = "[{'name':'user2','number':2},{'name':'user3','number':3}]";
+		request.post({url: url + "/" + collection, body: data}, function(error, response, body){
+					commands.push("   -  Create multiple documents: " +  body);
+					listDocument();
+			});
+		
 	}
 	
 	function listDocument() {
 		//Queries
 		commands.push("\n3 Queries");
+		
 		//3.1 Find documents in a collection that match a query condition
 		commands.push("3.1 Find documents in a collection that match a query condition");
+		
+		//GET /collection?query{number:3}
+		request.get(url + "/" + collection + "?query={number:3}", function(error, response, body){
+			commands.push("   -  List documents: " +  body);
+			listAllDocuments();
+		});
 	
-		collectionOptions.path = database + "/mycollection?query={number:3}";
-		collectionOptions.method = 'GET'
-	
-		https.request(collectionOptions, function(response) {
-			var outputString = '';
-			response.on('data', function(chunk) {
-				outputString += chunk;
-			});
-	
-			response.on('end', function() {
-				commands.push("\tList Document: " + outputString);
-				listAllDocuments();
-			});
-		}).end();
 	}
 	
 	function listAllDocuments() {
 		//3.2 Find all documents in a collection
 		commands.push("3.2 Find all documents in a collection");
-	
-		collectionOptions.path = database + "/mycollection";
 		
-		https.request(collectionOptions, function(response) {
-			var outputString = '';
-			response.on('data', function(chunk) {
-				outputString += chunk;
+		//GET /collection
+		request.get(url + "/" + collection, function(error, response, body){
+					commands.push("   -  List documents: " +  body);
+					updateDocument();
 			});
 	
-			response.on('end', function() {
-				commands.push("\tList Documents: " + outputString);
-				updateDocument();
-			});
-		}).end();
 	}
 	
 	function updateDocument() {
 		//4 Update documents in a collection
 		commands.push("\n4 Update documents in a collection");
 		
-		collectionOptions.path = database + "/mycollection/?query={number:1}";
-		
-		var request = https.request(collectionOptions, function(response) {
-			var outputString = '';
-			response.on('data', function(chunk) {
-				outputString += chunk;
+		//PUT /collection?query={number:1}
+		data = "{'name':'user1','number':4}";
+		request.post({url: url + "/" + collection + "?query={number:1}", body: data}, function(error, response, body){
+					commands.push("   -  Update document: " +  body);
+					deleteDocument();
 			});
-	
-			response.on('end', function() {
-				commands.push("\tUpdate Document: " + outputString);
-				deleteDocument();
-			});
-		});
-		request.write("{'name':'user1','number':4}");
-		request.end();
 	
 	}
 	
@@ -173,82 +129,57 @@ function doEverything(res) {
 		//5 Delete documents in a collection
 		commands.push("\n5 Delete documents in a collection");
 		
-		collectionOptions.path = database + "/mycollection?query={number:3}";
-		collectionOptions.method = "DELETE";
-		
-		https.request(collectionOptions, function(response) {
-			var outputString = '';
-			response.on('data', function(chunk) {
-				outputString += chunk;
-			});
-	
-			response.on('end', function() {
-				commands.push("\tDelete Document: " + outputString);
-				listAllCollections();
-			});
-		}).end();
+		//DELETE /collection?query={number:3}
+		request.del(url + "/" + collection + "?query={number:3}", function(error, response, body){
+			commands.push("   -  Delete document: " +  body);
+			listAllCollections();
+		});
 	
 	}
 	
 	function listAllCollections() {
 		//6 List all collections in a database
 		commands.push("\n6 List all collections in a database");
-	
-		collectionOptions.path = database;
-		collectionOptions.method = 'GET';
-	
-		https.request(collectionOptions, function(response) {
-			var outputString = '';
-			response.on('data', function(chunk) {
-				outputString += chunk;
-			});
-	
-			response.on('end', function() {
-				commands.push("\tList Collections: " + outputString);
-				deleteCollection();
-			});
-		}).end();
+		
+		//GET /
+		request.get(url, function(error, response, body){
+			commands.push("   -  List all collections: " + body);
+			deleteCollection();
+		});
+
 	}
 	
 	function deleteCollection() {
 		//7 Drop a collection
 		commands.push("\n7 Drop a collection");
-	
-		collectionOptions.path = database + "/mycollection";
-		collectionOptions.method = "DELETE";
-	
-		https.request(collectionOptions, function(response) {
-			var outputString = '';
-			response.on('data', function(chunk) {
-				outputString += chunk;
-			});
-	
-			response.on('end', function() {
-				commands.push("\tDelete Collection: " + outputString);
-				printLog();
-			});
-		}).end();
-	
+		
+		//DELETE /collection
+		request.del(url + "/" + collection, function(error, response, body){
+			commands.push("   -  Delete collection: " +  body);
+			printLog();
+		});
+		
 	}
 	
 	function printLog() {
+		
 		for (var i = 0; i < commands.length; i++){
 			console.log(commands[i]);
 		}
+		
+		printBrowser();
 	}
 	
-//	function printBrowser(){
-//		app.set('view engine', 'ejs');
-//		res.render('index.ejs', {commands: commands});
-//	}
-	
-	//start functions	
-	createCollection();
+	function printBrowser(){
+		app.set('view engine', 'ejs');
+		res.render('index.ejs', {commands: commands});
+	}
 }
 
 function parseVcap(){
+	
 //	var vcap_services = JSON.parse(process.env.VCAP_SERVICES);
-//	var credentials = vcap_services['altadb-dev'][0].credentials;
+//	var credentials = vcap_services['timeseriesdatabase'][0].credentials;
 //	var ssl = false;
 //	database = credentials.db;
 //	host = credentials.host;
@@ -256,13 +187,15 @@ function parseVcap(){
 //	password = credentials.password;
 //	
 //	if (ssl){
-//		restport = credentials.ssl_drda_port;
+//		url = credentials.ssl_rest_url
+//		port = credentials.ssl_rest_port;
 //	}
 //	else{
-//	    restport = credentials.drda_port;  
+//		url = credentials.rest_url
+//	    port = credentials.rest_port;  
 //	}
+	
 }
-doEverything();
 
 app.get('/databasetest', function(req, res) {
 	doEverything(res);
@@ -272,5 +205,7 @@ app.get('/', function(req, res) {
 	res.sendFile(__dirname + '/views/index.html');
 });
 
-app.listen(port);
+app.listen(3011, function() {
+	console.log("Running ......");
+});
 
