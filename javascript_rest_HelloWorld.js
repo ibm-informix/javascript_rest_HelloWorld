@@ -1,8 +1,8 @@
-/*-
- * Javascript Sample Application: Connection to Informix with REST
- */
+/**
+ * Javascript Sample Application: Connect to Informix with REST
+ **/
 
-/*-
+/**
  * Topics
  * 1 Create a collection
  * 2 Inserts
@@ -15,34 +15,32 @@
  * 5 Delete documents in a collection
  * 6 List all collections in a database
  * 7 Drop a collection
- */
+ **/
 
 //external dependencies
 var express = require('express');
 var app = express();
 var request = require('request');
 
-//connection information
-var host = '';
+
+//To run locally, set the URL here. For example, URL = "https://" + username + ":" + password + "@" + host + ":" + port + "/" + database;
+var URL = "";
+
 var port = process.env.VCAP_APP_PORT || 8881;
-var database = '';
-var username = '';
-var password = '';
-//if pasting url info use this format
-//var url = "https://" + username + ":" + password + "@" + host + ":" + port + database;
-var url = 'http://cloudqa:cloud4pass@baratheon.lenexa.ibm.com:8881/dbTest';
+var USE_SSL = false;
 
 //program variables
 var collection = 'mycollection';
 var data = "";
+var cookieJar;
+var sessionCookie;
 var commands = [];
 
 function doEverything(res) {
-	//if connecting to database via bluemix use the parseVcap function
-	//parseVcap();
-	
-	//start chain of function calls
-	createCollection();
+	url = URL;
+	if (url == null || url == "") {
+		url = parseVcap();
+	}
 	
 	function createCollection(err) {
 		//1 Create a collection
@@ -50,7 +48,15 @@ function doEverything(res) {
 		
 		//POST /collection
 		data = {"name":collection};
+		cookieJar = request.jar();
 		request.post({url: url, body: JSON.stringify(data)}, function(error, response, body){
+					if (error) {
+						handleError(error, res);
+						return;
+					}
+					sessionCookie = response.headers['set-cookie'][0];
+					cookieObj = request.cookie(sessionCookie);
+					cookieJar.setCookie(cookieObj, url);
 					commands.push("   -  Create collection: " +  body);
 					createDocument();
 			});
@@ -65,7 +71,11 @@ function doEverything(res) {
 		
 		//POST /collection
 		data = "{'name':'user1','number':1}";
-		request.post({url: url + "/" + collection, body: data}, function(error, response, body){
+		request.post({url: url + "/" + collection, jar: cookieJar, body: data}, function(error, response, body){
+					if (error) {
+						handleError(error, res);
+						return;
+					}
 					commands.push("   -  Create document: " +  body);
 					createMultipleDocument();
 			});
@@ -78,7 +88,11 @@ function doEverything(res) {
 		
 		//POST /collection
 		data = "[{'name':'user2','number':2},{'name':'user3','number':3}]";
-		request.post({url: url + "/" + collection, body: data}, function(error, response, body){
+		request.post({url: url + "/" + collection, jar: cookieJar, body: data}, function(error, response, body){
+					if (error) {
+						handleError(error, res);
+						return;
+					}
 					commands.push("   -  Create multiple documents: " +  body);
 					listDocument();
 			});
@@ -93,7 +107,11 @@ function doEverything(res) {
 		commands.push("3.1 Find documents in a collection that match a query condition");
 		
 		//GET /collection?query{number:3}
-		request.get(url + "/" + collection + "?query={number:3}", function(error, response, body){
+		request.get({url: url + "/" + collection + "?query={number:3}", jar: cookieJar}, function(error, response, body){
+			if (error) {
+				handleError(error, res);
+				return;
+			}
 			commands.push("   -  List documents: " +  body);
 			listAllDocuments();
 		});
@@ -105,7 +123,11 @@ function doEverything(res) {
 		commands.push("3.2 Find all documents in a collection");
 		
 		//GET /collection
-		request.get(url + "/" + collection, function(error, response, body){
+		request.get({url : url + "/" + collection, jar: cookieJar}, function(error, response, body){
+					if (error) {
+						handleError(error, res);
+						return;
+					}
 					commands.push("   -  List documents: " +  body);
 					updateDocument();
 			});
@@ -118,7 +140,11 @@ function doEverything(res) {
 		
 		//PUT /collection?query={number:1}
 		data = "{'name':'user1','number':4}";
-		request.post({url: url + "/" + collection + "?query={number:1}", body: data}, function(error, response, body){
+		request.post({url: url + "/" + collection + "?query={number:1}", jar: cookieJar, body: data}, function(error, response, body){
+					if (error) {
+						handleError(error, res);
+						return;
+					}
 					commands.push("   -  Update document: " +  body);
 					deleteDocument();
 			});
@@ -130,7 +156,11 @@ function doEverything(res) {
 		commands.push("\n5 Delete documents in a collection");
 		
 		//DELETE /collection?query={number:3}
-		request.del(url + "/" + collection + "?query={number:3}", function(error, response, body){
+		request.del({url : url + "/" + collection + "?query={number:3}", jar: cookieJar}, function(error, response, body){
+			if (error) {
+				handleError(error, res);
+				return;
+			}
 			commands.push("   -  Delete document: " +  body);
 			listAllCollections();
 		});
@@ -142,7 +172,11 @@ function doEverything(res) {
 		commands.push("\n6 List all collections in a database");
 		
 		//GET /
-		request.get(url, function(error, response, body){
+		request.get({url: url, jar: cookieJar}, function(error, response, body){
+			if (error) {
+				handleError(error, res);
+				return;
+			}
 			commands.push("   -  List all collections: " + body);
 			deleteCollection();
 		});
@@ -154,7 +188,11 @@ function doEverything(res) {
 		commands.push("\n7 Drop a collection");
 		
 		//DELETE /collection
-		request.del(url + "/" + collection, function(error, response, body){
+		request.del({url: url + "/" + collection, jar: cookieJar}, function(error, response, body){
+			if (error) {
+				handleError(error, res);
+				return;
+			}
 			commands.push("   -  Delete collection: " +  body);
 			printLog();
 		});
@@ -162,7 +200,6 @@ function doEverything(res) {
 	}
 	
 	function printLog() {
-		
 		for (var i = 0; i < commands.length; i++){
 			console.log(commands[i]);
 		}
@@ -173,28 +210,34 @@ function doEverything(res) {
 	function printBrowser(){
 		app.set('view engine', 'ejs');
 		res.render('index.ejs', {commands: commands});
+		commands = [];
 	}
+	
+	//start chain of function calls
+	createCollection();
+}
+
+function handleError(err, res) {
+	console.error("error: ", err.message);
+	
+	// Display result
+	commands.push("ERROR: " + err.message);
+	app.set('view engine', 'ejs');
+	res.render('index.ejs', {commands: commands});
+	commands = [];
 }
 
 function parseVcap(){
+	var serviceName = process.env.SERVICE_NAME || 'timeseriesdatabase';
+    var vcap_services = JSON.parse(process.env.VCAP_SERVICES);
+    var credentials = vcap_services[serviceName][0].credentials;
 	
-//	var vcap_services = JSON.parse(process.env.VCAP_SERVICES);
-//	var credentials = vcap_services['timeseriesdatabase'][0].credentials;
-//	var ssl = false;
-//	database = credentials.db;
-//	host = credentials.host;
-//	username = credentials.username;
-//	password = credentials.password;
-//	
-//	if (ssl){
-//		url = credentials.ssl_rest_url
-//		port = credentials.ssl_rest_port;
-//	}
-//	else{
-//		url = credentials.rest_url
-//	    port = credentials.rest_port;  
-//	}
-	
+	if (USE_SSL) {
+		url = credentials.rest_url_ssl;
+	} else {
+		url = credentials.rest_url;
+	}
+	return url;
 }
 
 app.get('/databasetest', function(req, res) {
@@ -205,7 +248,7 @@ app.get('/', function(req, res) {
 	res.sendFile(__dirname + '/views/index.html');
 });
 
-app.listen(3011, function() {
-	console.log("Running ......");
+app.listen(port, function() {
+	console.log("server starting on port " + port);
 });
 
